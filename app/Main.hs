@@ -30,28 +30,43 @@ import Data.Vector
 
 import Data.Vector qualified as V
 
-import Data.Char (intToDigit)
 --  modules for parsing
--- import Data.Char
---   (isDigit
---   ,isSpace
---   )
--- import Data.Functor
---   (void
---   ,($>)
---   )
--- import Text.ParserCombinators.ReadP
---   (ReadP
---   ,readP_to_S
---   ,endBy1
---   ,munch1
---   ,satisfy
---   ,many1
---   ,char
---   ,string
---   ,eof
---   ,optional
---   )
+import Control.Monad (unless)
+import Data.Char
+  (isDigit
+  ,intToDigit
+  )
+import Data.Functor
+  (void
+  ,($>)
+  )
+import Text.ParserCombinators.ReadP
+  (ReadP
+  ,readP_to_S
+  ,sepBy1
+  ,satisfy
+  ,char
+  ,eof
+  ,pfail
+  )
+
+import Options.Applicative
+  (Parser
+  ,strOption
+  ,long
+  ,short
+  ,help
+  ,showDefault
+  ,value
+  ,metavar
+  ,execParser
+  ,info
+  ,helper
+  ,progDesc
+  ,header
+  ,fullDesc
+  ,(<**>)
+  )
 
 default(Int)
 
@@ -139,6 +154,8 @@ buildSquares (w, h) = foldl' f IM.empty rows
       where
         g acc' (ccol, ncol) = IM.insert (ncol + w*nrow) [ccol, crow]  acc'
 
+
+-- utilities for printing
 printSolutions :: Squares -> [Board] -> IO ()
 printSolutions squares boards =
   forM_ (zip boards [1..]) $ \(board,n) -> do
@@ -154,3 +171,80 @@ printBoard squares board = do
 
 positionToSquare :: Squares -> Int -> String
 positionToSquare squares pos = squares IM.! pos
+
+squareToPosition :: Squares -> String -> Int
+squareToPosition squares str = IM.foldrWithKey search (-1) squares
+  where
+    search n s acc
+      |s == str = n
+      |otherwise = acc
+
+-- utillities for parsing the command line
+data Tour = Tour
+  {initialState :: String
+  ,dimension :: String
+  }
+
+
+parseTour :: Parser Tour
+parseTour = Tour
+  <$> strOption
+      (long "list"
+       <> short 'l'
+       <> help "Inital state of the board as a list of square"
+       <> showDefault
+       <> value "a1,c3"
+       <> metavar "LIST OF SQUARE"
+      )
+  <*> strOption
+      (long "size"
+      <>short 's'
+      <> help "Dimension of the board"
+      <> showDefault
+      <> value "(8,8)"
+      <> metavar "PAIR OF INT"
+      )
+
+parseOptions :: IO ([Int], (Int, Int))
+parseOptions = do
+  let options = info
+        (parseTour <**> helper)
+        (fullDesc
+         <> progDesc "Compute solutions for the knight parseTour"
+         <> header "KnightTour --list=a1,c3 --size=(8,8)"
+        )
+  tour <- execParser options
+  let size = case readP_to_S parseSize (dimension tour) of
+               [x] -> fst x
+               _   -> error ("Can't parse dimension: "
+                              <> dimension tour)
+      initial = case readP_to_S (parseInitial size) (initialState tour) of
+                  [x] -> fst x
+                  _   -> error ("Can't parse initial state: "
+                                <> initialState tour)
+  pure (initial, size)
+
+digit :: ReadP Int
+digit = read . show <$> satisfy isDigit
+
+parseSize :: ReadP (Int, Int)
+parseSize = do
+  liftA2 (,)
+    (char '(' *> digit )
+    (char ',' *> digit <* char ')')
+
+parseInitial :: (Int, Int) -> ReadP [Int]
+parseInitial size = do
+  ls <- parseSquare `sepBy1` char ','
+  --unless (checkInitial size ls) pfail
+  pure (buildInitial size ls)
+
+parseSquare :: ReadP String
+parseSquare = do
+  col <- satisfy (`elem` ['a'..'g'])
+  row <- satisfy (`elem` ['1'..'8'])
+  pure [col, row]
+
+-- To continue
+buildInitial :: (Int, Int) -> [String] -> [Int]
+buildInitial = undefined
