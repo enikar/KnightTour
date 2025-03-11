@@ -123,7 +123,7 @@ buildRules (w, h) = V.replicate (w*h) S.empty // rules
         possibleJumps = foldl' g [] jumps
         g acc' (dx, dy)
           |inRange range (col', row') = (col' + w*row') : acc'
-          |otherwise            = acc'
+          |otherwise                  = acc'
            where
              row' = row + dy
              col' = col + dx
