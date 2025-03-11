@@ -16,8 +16,8 @@
 -- import Text.Read (readMaybe)
 import Data.Foldable (forM_)
 import Data.List (foldl')
-import Data.IntMap (IntMap)
-import Data.IntMap qualified as IM
+import Data.IntMap.Strict (IntMap)
+import Data.IntMap.Strict qualified as IM
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as S
 
