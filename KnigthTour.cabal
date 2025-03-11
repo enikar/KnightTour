@@ -71,6 +71,7 @@ executable KnigthTour
     build-depends:  base >4 && <5
                     , containers
                     , vector
+                    , optparse-applicative
 
     ghc-options:    -O2 "-with-rtsopts=-M5G"
     -- Directories containing source files.
