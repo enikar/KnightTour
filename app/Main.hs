@@ -73,8 +73,6 @@ type Board = IntMap Int
 -- 0 is a1, 1 is a2…
 type Squares = IntMap String
 
---data Tour = Tour
-
 main :: IO ()
 main = do
   (start, dim) <- parseOptions
@@ -199,7 +197,7 @@ parseOptions = do
         (parseTour <**> helper)
         (fullDesc
          <> progDesc "Compute solutions for the knight parseTour"
-         <> header "KnightTour --list=[\"a1\",\"c3\"] --size=(8,8)"
+         <> header "KnightTour --list=[\"a1\",\"b3\"] --size=(5,5)"
         )
   tour <- execParser options
   let size = dimOpt tour
@@ -213,11 +211,16 @@ parseOptions = do
 -- Third: Check these column and row are in the board
 -- Finally: Check that are valid jumps.
 
--- Very ugly. Rewrite it ! We have to think to a better way
--- to accomplish that. There are too many calls to error "function"
+-- Very ugly. Rewrite it! We have to think to a better way
+-- to accomplish that. There are too many calls to the error "function"
 parseInitial :: Dim -> [String] -> [Int]
-parseInitial (w, h) squares = map pairToPos ls'
+parseInitial (w, h) squares
+  | w > 9 || h > 9 = error ("Error: parseInitial: too high dimension (max (9,9)): "
+                            <> show (w, h))
+  | otherwise      = map pairToPos ls'
   where
+    pairToPos (x, y) = x + w * y
+
     deltas = [1,2,-2, -1]
     jumps = [(i, j)| i <- deltas, j <- deltas, abs i /= abs j]
     colums = zip ['a'..] [0..w-1]
@@ -234,6 +237,7 @@ parseInitial (w, h) squares = map pairToPos ls'
     ls' | all (uncurry valid) (zip ls (tail ls)) = ls
         | otherwise = error ("Error: parseInitial: invalid inital jumps: "
                               <> show squares)
+
     valid (x, y) (x', y') = (x' - x, y' - y) `elem` jumps
 
     strToPair [col, row] = if col `elem` map fst colums && row `elem` map fst rows
@@ -247,6 +251,4 @@ parseInitial (w, h) squares = map pairToPos ls'
 
     selectRow row = fromMaybe errParse (lookup row rows)
       where
-        errParse = error ("Error: parseInitial: invalid colum: " <> show row)
-
-    pairToPos (x, y) = x + w * y
+        errParse = error ("Error: parseInitial: invalid row: " <> show row)
