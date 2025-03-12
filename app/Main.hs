@@ -112,8 +112,8 @@ buildRules (w, h) = V.replicate (w*h) S.empty // rules
     squares = [(x,y) | x <- [0..w-1], y <- [0..h-1]]
 
     range = ((0,0), (w-1, h-1))
-    delta = [1, 2, -2, -1]
-    jumps = [(i,j) | i <- delta, j <- delta, abs i /= abs j]
+    deltas = [1, 2, -2, -1]
+    jumps = [(i,j) | i <- deltas, j <- deltas, abs i /= abs j]
 
     f acc (col, row) = (col+w*row, S.fromList possibleJumps) : acc
       where
