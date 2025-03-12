@@ -214,36 +214,53 @@ parseOptions = do
 -- to accomplish that. There are too many calls to the error "function"
 parseInitial :: Dim -> [String] -> [Int]
 parseInitial (w, h) squares
-  | w > 9 || h > 9 = error ("Error: parseInitial: too high dimension (max (9,9)): "
-                            <> show (w, h))
-  | otherwise      = map pairToPos ls'
+  |w > 9
+   || h > 9
+   || w < 1
+   || h < 1 = error ("Error: parseInitial: too high dimension (max (9,9)): " <> show (w, h))
+  |otherwise = map pairToPos ls'
   where
+    -- build a position as a single Int
     pairToPos (x, y) = x + w * y
 
+    -- build a list of jumps
     deltas = [1,2,-2, -1]
     jumps = [(i, j)| i <- deltas, j <- deltas, abs i /= abs j]
+    -- build two lists of pairs within the size of the board
+    -- so we can check squares are in the board
     colums = zip ['a'..] [0..w-1]
     rows = zip ['1'..] [0..h-1]
+    -- Get the valid columns and  valid rows
+    vcols = map fst colums
+    vrows = map fst rows
 
-
+    -- build a list of coordinate (Int, Int) from the list of string.
     ls = foldr f [] (check squares)
     f str acc = strToPair str : acc
+    -- check there aren't duplicate squarr
     check sqs
-      | sqs == nubOrd sqs = sqs
-      | otherwise = error ("Error: parseInitial: there is duplicate squares: "
+      |sqs == nubOrd sqs = sqs
+      |otherwise = error ("Error: parseInitial: there is duplicate squares: "
                            <> show squares)
 
-    ls' | all (uncurry valid) (zip ls (tail ls)) = ls
-        | otherwise = error ("Error: parseInitial: invalid inital jumps: "
+    -- check the validity of jumps
+    ls' |all (uncurry valid) (zip ls (tail ls)) = ls
+        |otherwise = error ("Error: parseInitial: invalid inital jumps: "
                               <> show squares)
 
     valid (x, y) (x', y') = (x' - x, y' - y) `elem` jumps
 
-    strToPair [col, row] = if col `elem` map fst colums && row `elem` map fst rows
-                           then (selectCol col, selectRow row)
-                           else error ("Error: parseInitial: square outside the board: " <> [col, row])
+    -- Build a pair from a string if valid
+    -- "a1" becomes (0,0)
+    -- "b1" becomes (1,0)
+    strToPair [col, row]
+      |col `elem` vcols
+       && row `elem` vrows = (selectCol col, selectRow row)
+      |otherwise = error ("Error: parseInitial: square outside the board: "
+                          <> [col, row])
     strToPair str  = error ("Error: parseInitial: invalid square: " <> str)
 
+    -- returns colum or row as a number
     selectCol col = fromMaybe errParse (lookup col colums)
       where
         errParse = error ("Error: parseInitial: invalid colum: " <> show col)
