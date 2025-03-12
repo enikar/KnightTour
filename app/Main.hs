@@ -2,7 +2,6 @@
 
 -- Usage: cabal run KnightTour -- --size='(5,4)' --list='["a1"]'
 
--- *** UNDER CONSTRUCTION
 {-# LANGUAGE ImportQualifiedPost #-}
 -- {-# LANGUAGE OverloadedStrings #-}
 -- {-# LANGUAGE PackageImports #-}
