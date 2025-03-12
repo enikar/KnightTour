@@ -1,5 +1,6 @@
 -- 2025/03/11 -- The knight tour
 
+-- Usage: cabal run KnightTour -- --size='(5,4)' --list='["a1"]'
 
 -- *** UNDER CONSTRUCTION
 {-# LANGUAGE ImportQualifiedPost #-}
@@ -12,14 +13,16 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {- HLINT ignore "Eta reduce" -}
 
--- import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe)
 -- import Text.Read (readMaybe)
 import Data.Foldable (forM_)
 import Data.List (foldl')
+import Data.List.Extra (nubOrd)
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IM
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as S
+import Data.Char (intToDigit)
 
 import Data.Ix (inRange)
 import Data.Vector
@@ -29,30 +32,11 @@ import Data.Vector
   )
 
 import Data.Vector qualified as V
-
 --  modules for parsing
-import Control.Monad (unless)
-import Data.Char
-  (isDigit
-  ,intToDigit
-  )
-import Data.Functor
-  (void
-  ,($>)
-  )
-import Text.ParserCombinators.ReadP
-  (ReadP
-  ,readP_to_S
-  ,sepBy1
-  ,satisfy
-  ,char
-  ,eof
-  ,pfail
-  )
-
 import Options.Applicative
   (Parser
-  ,strOption
+  ,option
+  ,auto
   ,long
   ,short
   ,help
@@ -89,14 +73,16 @@ type Board = IntMap Int
 -- 0 is a1, 1 is a2…
 type Squares = IntMap String
 
+--data Tour = Tour
+
 main :: IO ()
 main = do
-  let dim = (5,5) -- start with a small "chess" board
-      maxdepth = uncurry (*) dim
-      start = IM.singleton 0 0 -- start on a1
+  (start, dim) <- parseOptions
+  let maxdepth = uncurry (*) dim
+      start' = IM.fromList (zip [0..] start) -- start on a1
       rules = buildRules dim
       squares = buildSquares dim
-  printSolutions squares (solutions rules maxdepth 1 start)
+  printSolutions squares (solutions rules maxdepth (length start') start')
 
 -- solutions is a back-tracking algorithm.
 solutions :: Rules -> Int -> Int -> Board -> [Board]
@@ -172,79 +158,95 @@ printBoard squares board = do
 positionToSquare :: Squares -> Int -> String
 positionToSquare squares pos = squares IM.! pos
 
-squareToPosition :: Squares -> String -> Int
-squareToPosition squares str = IM.foldrWithKey search (-1) squares
-  where
-    search n s acc
-      |s == str = n
-      |otherwise = acc
+-- squareToPosition :: Squares -> String -> Int
+-- squareToPosition squares str = IM.foldrWithKey search (-1) squares
+--   where
+--     search n s acc
+--       |s == str = n
+--       |otherwise = acc
 
 -- utillities for parsing the command line
-data Tour = Tour
-  {initialState :: String
-  ,dimension :: String
+data OptTour = OptTour
+  {initialOpt :: [String]
+  ,dimOpt :: (Int, Int)
   }
 
 
-parseTour :: Parser Tour
-parseTour = Tour
-  <$> strOption
+-- Maybe we should write custom readers to use in place of auto
+-- We'll have a better syntax in the cmdline from the shell.
+parseTour :: Parser OptTour
+parseTour = OptTour
+  <$> option auto
       (long "list"
        <> short 'l'
        <> help "Inital state of the board as a list of square"
        <> showDefault
-       <> value "a1,c3"
+       <> value ["a1", "c2"]
        <> metavar "LIST OF SQUARE"
       )
-  <*> strOption
+  <*> option auto
       (long "size"
       <>short 's'
       <> help "Dimension of the board"
       <> showDefault
-      <> value "(8,8)"
+      <> value (5,5)
       <> metavar "PAIR OF INT"
       )
 
-parseOptions :: IO ([Int], (Int, Int))
+parseOptions :: IO ([Int], Dim)
 parseOptions = do
   let options = info
         (parseTour <**> helper)
         (fullDesc
          <> progDesc "Compute solutions for the knight parseTour"
-         <> header "KnightTour --list=a1,c3 --size=(8,8)"
+         <> header "KnightTour --list=[\"a1\",\"c3\"] --size=(8,8)"
         )
   tour <- execParser options
-  let size = case readP_to_S parseSize (dimension tour) of
-               [x] -> fst x
-               _   -> error ("Can't parse dimension: "
-                              <> dimension tour)
-      initial = case readP_to_S (parseInitial size) (initialState tour) of
-                  [x] -> fst x
-                  _   -> error ("Can't parse initial state: "
-                                <> initialState tour)
+  let size = dimOpt tour
+      initial = parseInitial size (initialOpt tour)
   pure (initial, size)
 
-digit :: ReadP Int
-digit = read . show <$> satisfy isDigit
+-- There are many checks to accomplish.
+-- First, we need to check that each square is uniq in the list.
+-- Second: check that each square is composed by a letter from 'a'
+-- and a digit from 1
+-- Third: Check these column and row are in the board
+-- Finally: Check that are valid jumps.
 
-parseSize :: ReadP (Int, Int)
-parseSize = do
-  liftA2 (,)
-    (char '(' *> digit )
-    (char ',' *> digit <* char ')')
+-- Very ugly. Rewrite it ! We have to think to a better way
+-- to accomplish that. There are too many calls to error "function"
+parseInitial :: Dim -> [String] -> [Int]
+parseInitial (w, h) squares = map pairToPos ls'
+  where
+    deltas = [1,2,-2, -1]
+    jumps = [(i, j)| i <- deltas, j <- deltas, abs i /= abs j]
+    colums = zip ['a'..] [0..w-1]
+    rows = zip ['1'..] [0..h-1]
 
-parseInitial :: (Int, Int) -> ReadP [Int]
-parseInitial size = do
-  ls <- parseSquare `sepBy1` char ','
-  --unless (checkInitial size ls) pfail
-  pure (buildInitial size ls)
 
-parseSquare :: ReadP String
-parseSquare = do
-  col <- satisfy (`elem` ['a'..'g'])
-  row <- satisfy (`elem` ['1'..'8'])
-  pure [col, row]
+    ls = foldr f [] (check squares)
+    f str acc = strToPair str : acc
+    check sqs
+      | sqs == nubOrd sqs = sqs
+      | otherwise = error ("Error: parseInitial: there is duplicate squares: "
+                           <> show squares)
 
--- To continue
-buildInitial :: (Int, Int) -> [String] -> [Int]
-buildInitial = undefined
+    ls' | all (uncurry valid) (zip ls (tail ls)) = ls
+        | otherwise = error ("Error: parseInitial: invalid inital jumps: "
+                              <> show squares)
+    valid (x, y) (x', y') = (x' - x, y' - y) `elem` jumps
+
+    strToPair [col, row] = if col `elem` map fst colums && row `elem` map fst rows
+                           then (selectCol col, selectRow row)
+                           else error ("Error: parseInitial: square outside the board: " <> [col, row])
+    strToPair str  = error ("Error: parseInitial: invalid square: " <> str)
+
+    selectCol col = fromMaybe errParse (lookup col colums)
+      where
+        errParse = error ("Error: parseInitial: invalid colum: " <> show col)
+
+    selectRow row = fromMaybe errParse (lookup row rows)
+      where
+        errParse = error ("Error: parseInitial: invalid colum: " <> show row)
+
+    pairToPos (x, y) = x + w * y
