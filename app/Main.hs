@@ -79,10 +79,9 @@ main :: IO ()
 main = do
   (start, dim) <- parseOptions
   let maxdepth = uncurry (*) dim
-      start' = IM.fromList (zip [0..] start) -- start on a1
+      start' = IM.fromList (zip [0..] start)
       rules = buildRules dim
-      squares = buildSquares dim
-  printSolutions squares (solutions rules maxdepth (length start') start')
+  printSolutions dim (solutions rules maxdepth (length start') start')
 
 -- solutions is a back-tracking algorithm.
 solutions :: Rules -> Int -> Int -> Board -> [Board]
@@ -142,14 +141,15 @@ buildSquares (w, h) = foldl' f IM.empty rows
 
 
 -- utilities for printing
-printSolutions :: Squares -> [Board] -> IO ()
-printSolutions squares boards =
+printSolutions :: Dim -> [Board] -> IO ()
+printSolutions dim boards =
   forM_ (zip boards [1..]) $ \(board,n) -> do
     putStr (show n <> ") ")
-    printBoard squares board
+    printBoard dim board
 
-printBoard :: Squares -> Board -> IO ()
-printBoard squares board = do
+printBoard :: Dim -> Board -> IO ()
+printBoard dim board = do
+  let squares = buildSquares dim
   forM_ [0..length board - 1] $ \n ->
     let square = positionToSquare squares (board IM.! n)
     in putStr (square <> " ")
