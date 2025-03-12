@@ -45,7 +45,7 @@ are too many solutions to hope to list all of them, there are
 
 ## Build
 
-To build KnightTour you can use `cabal`:
+To build KnightTour you can use:
 ```cabal build```
 ## Run
 To run the program:
