@@ -27,7 +27,7 @@ There are some options:
 - -l or --list, to set the initial list.
 
 The option --size expects a pair of Int: `(5,4)`. As the parentheses are
-characters use by the shell, we need to quote the pair: \'(5,4)\'
+characters used by the shell, we need to quote the pair: \'(5,4)\'
 
 The option --list expects a list of string shaped as: `["a1","b3"]`.
 Obviously, we need to quote the expression in the shell, as for --size.
