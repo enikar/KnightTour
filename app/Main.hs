@@ -61,43 +61,45 @@ type Rules = Vector IntSet
 -- height = number of rows
 type Dim = (Int, Int) -- width x height
 
--- Board maps the depth to a square in the board
--- depth 0 is the first square occupied
--- depth 1 is the second…
--- Maybe we should use a Vector, here
-type Board = IntMap Int
+-- Tour is a Vector of square position taken by
+-- the knight.
+-- at index 0 is the first square occupied
+-- at index 1 is the second…
+type Tour = Vector Int
 
--- Squares map position to the coordinate in the chess board
+-- Squares map position to the coordinate in the chess tour
 -- 0 is a1, 1 is a2…
+-- It's used for printing solutions.
 type Squares = IntMap String
 
 main :: IO ()
 main = do
   (start, dim) <- parseOptions
   let maxdepth = uncurry (*) dim
-      start' = IM.fromList (zip [0..] start)
+      start' = V.fromList start
       rules = buildRules dim
-  printSolutions dim (solutions rules maxdepth (length start') start')
+  printSolutions dim (solutions rules maxdepth start')
 
--- solutions is a back-tracking algorithm.
-solutions :: Rules -> Int -> Int -> Board -> [Board]
-solutions rules maxdepth depth board
-  |depth == maxdepth = [board]
-  |otherwise = concatMap (solutions rules maxdepth (depth+1))
-                         (successors rules depth board)
+-- This a back-tracking algorithm with two functions:
+-- solutions and successors.
+solutions :: Rules -> Int -> Tour -> [Tour]
+solutions rules maxdepth tour
+  |length tour == maxdepth = [tour]
+  |otherwise = concatMap (solutions rules maxdepth)
+                         (successors rules tour)
 
 -- for the last inserted square select the successors
--- which are not already in the board.
-successors :: Rules -> Int -> Board -> [Board]
-successors rules depth board = S.foldl' f [] nextSquares
+-- which are not already in the tour.
+successors :: Rules -> Tour -> [Tour]
+successors rules tour = S.foldl' f [] nextSquares
   where
     -- gets the successors
-    lastsquare = board IM.! (depth - 1)
+    lastsquare = V.last tour
     possibleSquares = rules ! lastsquare
-    -- removes squares already in the board
-    nextSquares = S.difference possibleSquares (S.fromList (IM.elems board))
-    -- builds a new board for each new square
-    f acc prop = IM.insert depth prop board : acc
+    -- removes squares already in the tour
+    nextSquares = S.difference possibleSquares (S.fromList (V.toList tour))
+    -- builds a new tour for each new square
+    f acc next = V.snoc tour next : acc
 
 -- The trickier part is to build the Rules…
 -- Maybe it should be better to fill the vector inside runST
@@ -137,17 +139,17 @@ buildSquares (w, h) = foldl' f IM.empty rows
 
 
 -- utilities for printing
-printSolutions :: Dim -> [Board] -> IO ()
-printSolutions dim boards =
-  forM_ (zip boards [1..]) $ \(board,n) -> do
+printSolutions :: Dim -> [Tour] -> IO ()
+printSolutions dim tours =
+  forM_ (zip tours [1..]) $ \(tour,n) -> do
     putStr (show n <> ") ")
-    printBoard dim board
+    printTour dim tour
 
-printBoard :: Dim -> Board -> IO ()
-printBoard dim board = do
+printTour :: Dim -> Tour -> IO ()
+printTour dim tour = do
   let squares = buildSquares dim
-  forM_ [0..length board - 1] $ \n ->
-    let square = positionToSquare squares (board IM.! n)
+  forM_  tour $ \pos ->
+    let square = positionToSquare squares pos
     in putStr (square <> " ")
   putChar '\n'
 
@@ -167,7 +169,6 @@ data OptTour = OptTour
   ,dimOpt :: (Int, Int)
   }
 
-
 -- Maybe we should write custom readers to use in place of auto
 -- We'll have a better syntax in the cmdline from the shell.
 parseTour :: Parser OptTour
@@ -175,7 +176,7 @@ parseTour = OptTour
   <$> option auto
       (long "list"
        <> short 'l'
-       <> help "Inital state of the board as a list of square"
+       <> help "Inital state of the tour as a list of square"
        <> showDefault
        <> value ["a1", "c2"]
        <> metavar "LIST OF SQUARE"
@@ -183,7 +184,7 @@ parseTour = OptTour
   <*> option auto
       (long "size"
       <>short 's'
-      <> help "Dimension of the board"
+      <> help "Dimension of the tour"
       <> showDefault
       <> value (5,5)
       <> metavar "PAIR OF INT"
@@ -194,8 +195,8 @@ parseOptions = do
   let options = info
         (parseTour <**> helper)
         (fullDesc
-         <> progDesc "Compute solutions for the knight parseTour"
-         <> header "KnightTour --list=[\"a1\",\"b3\"] --size=(5,5)"
+         <> progDesc "Compute solutions for the knight's tour"
+         <> header "KnightTour --list=[\"a1\",\"c2\"] --size=(5,5)"
         )
   tour <- execParser options
   let size = dimOpt tour
@@ -207,10 +208,11 @@ parseOptions = do
 -- Second: check that each square is composed by a letter from 'a'
 -- and a digit from 1
 -- Third: Check these column and row are in the board
--- Finally: Check that are valid jumps.
+-- Finally: Check jumps are valid.
 
 -- Very ugly. Rewrite it! We have to think to a better way
 -- to accomplish that. There are too many calls to the error "function"
+-- We'll probably use ExceptT
 parseInitial :: Dim -> [String] -> [Int]
 parseInitial (w, h) squares
   |w > 9
@@ -236,7 +238,7 @@ parseInitial (w, h) squares
     -- build a list of coordinate (Int, Int) from the list of string.
     ls = foldr f [] (check squares)
     f str acc = strToPair str : acc
-    -- check there aren't duplicate squarr
+    -- check there aren't duplicate square
     check sqs
       |sqs == nubOrd sqs = sqs
       |otherwise = error ("Error: parseInitial: there is duplicate squares: "
