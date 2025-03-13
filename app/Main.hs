@@ -11,7 +11,10 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {- HLINT ignore "Eta reduce" -}
 
-import Data.Foldable (forM_, foldrM)
+import Data.Foldable
+  (forM_
+  ,foldrM
+  )
 import Data.List (foldl')
 import Data.List.Extra (nubOrd)
 import Data.IntMap.Strict (IntMap)
@@ -85,7 +88,7 @@ main = do
   r <- runExceptT parseOptions
   case r of
     Left e -> printError e
-    Right (dim, start) ->
+    Right (start, dim) ->
       let maxdepth = uncurry (*) dim
           start' = V.fromList start
           rules = buildRules dim
@@ -113,8 +116,10 @@ successors rules tour = S.foldl' f [] nextSquares
     f acc next = V.snoc tour next : acc
 
 -- The trickier part is to build the Rules…
--- Maybe it should be better to fill the vector inside runST
--- or to start with V.empty and use V.cons but we need that
+-- (well, parsing the initial list from the command line was
+-- probably worst).
+-- There is another way to do it with two nested foldl' and using
+-- V.snoc. Whether it is better, is a question of taste, I believe.
 -- (rules ! 0) are the successors of the possition 0 ("a1")
 -- (rules ! 1) are the successors of the position 1 ("a2")…
 buildRules :: Dim -> Rules
@@ -201,7 +206,7 @@ parseTour = OptTour
       <> metavar "PAIR OF INT"
       )
 
-parseOptions :: ExceptT ParseError IO (Dim, [Int])
+parseOptions :: ExceptT ParseError IO ([Int], Dim)
 parseOptions =
   let options = info
         (parseTour <**> helper)
@@ -212,7 +217,7 @@ parseOptions =
   in
     do OptTour{..} <- liftIO (execParser options)
        let initial = parseInitial boardDim initialTour
-       liftEither (fmap (boardDim,) initial)
+       liftEither (fmap (,boardDim) initial)
 
 -- There are many checks to accomplish.
 -- First, we checkInitial the request size of the board
@@ -244,12 +249,15 @@ parseInitial (w, h) squares
    -- build a list of coordinate (Int, Int) from the list of String.
    reduce :: String -> [(Int,Int)] -> Either ParseError [(Int, Int)]
    reduce str acc = do
-     r <- strToPair str -- : acc
+     r <- strToPair str
      pure (r:acc)
 
    -- Build a pair from a string if valid
    -- "a1" becomes (0,0)
    -- "b1" becomes (1,0)
+   -- The way we check the validity of the square is
+   -- not optimal: we can't detect malformed col or row
+   -- it responds a (Left OutsideBoard) in this case.
    strToPair :: String -> Either ParseError (Int, Int)
    strToPair [col, row]
      |col `elem` vcols
@@ -265,27 +273,26 @@ parseInitial (w, h) squares
    selectCol :: Char -> Either ParseError Int
    selectCol col = maybe errParse Right (lookup col colums)
      where
-       errParse = Left (InvalidCol [col])
+       errParse = Left (InvalidCol [col]) -- not reached
 
    selectRow :: Char -> Either ParseError Int
    selectRow row = maybe errParse Right (lookup row rows)
      where
-       errParse = Left (InvalidRow [row])
+       errParse = Left (InvalidRow [row]) -- not reached
 
    -- build a position as a single Int
    pairToPos (x, y) = x + w * y
  in do
    -- checks they aren't duplicate square
    sq <- checkInitial squares
-   -- builds a [(Int,Int)] from the [String]
-   -- and performs many checks
+   -- builds a [(Int,Int)] from the [String] and performs many checks…
    ls <- foldrM reduce [] sq
    -- Checks validity of jumps
    ls' <- checkJumps ls
    -- map (Int, Int) to position
    pure (map pairToPos ls')
 
--- checkInitial: check there aren't duplicate square
+-- checkInitial: checks there aren't duplicate squares
 checkInitial :: [String] -> Either ParseError [String]
 checkInitial sqs
   |sqs == nubOrd sqs = Right sqs
@@ -306,15 +313,17 @@ checkJumps xs
         c = ['a'..] !! x
         r = ['1'..] !! y
 
--- utilities to manage errors during parsing the initial list of jumps
+-- Utilities to manage errors during parsing the initial list of jumps
+-- We use a custom error data type in Either
 data ParseError = DuplicateSquare String
                   |InvalidJumps String
                   |OutsideBoard String
                   |InvalidSquare String
-                  |InvalidCol String
-                  |InvalidRow String
+                  |InvalidCol String -- never used
+                  |InvalidRow String -- never used
                   |InvalidDimension String
 
+-- Maybe it should better to write a show instance for ParseError
 printError :: ParseError -> IO ()
 printError err = putStrLn ("Error: parseInitial: " <> strError)
   where
