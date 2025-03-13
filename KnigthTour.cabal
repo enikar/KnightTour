@@ -75,6 +75,7 @@ executable KnigthTour
                   , extra
                   , mtl
                   , attoparsec
+                  , bytestring
 
     ghc-options:    -O2 "-with-rtsopts=-M5G"
     -- Directories containing source files.
