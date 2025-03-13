@@ -7,7 +7,7 @@
 -- {-# LANGUAGE LambdaCase #-}
 -- {-# LANGUAGE MultiWayIf #-}
 -- {-# LANGUAGE TupleSections #-}
--- {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {- HLINT ignore "Eta reduce" -}
 
@@ -165,8 +165,8 @@ positionToSquare squares pos = squares IM.! pos
 
 -- utillities for parsing the command line
 data OptTour = OptTour
-  {initialOpt :: [String]
-  ,dimOpt :: (Int, Int)
+  {initialTour :: [String]
+  ,boardDim :: (Int, Int)
   }
 
 -- Maybe we should write custom readers to use in place of auto
@@ -184,7 +184,7 @@ parseTour = OptTour
   <*> option auto
       (long "size"
       <>short 's'
-      <> help "Dimension of the tour"
+      <> help "Dimension of the tour between (1,1) and (9,9)"
       <> showDefault
       <> value (5,5)
       <> metavar "PAIR OF INT"
@@ -198,10 +198,9 @@ parseOptions = do
          <> progDesc "Compute solutions for the knight's tour"
          <> header "KnightTour --list=[\"a1\",\"c2\"] --size=(5,5)"
         )
-  tour <- execParser options
-  let size = dimOpt tour
-      initial = parseInitial size (initialOpt tour)
-  pure (initial, size)
+  OptTour{..} <- execParser options
+  let initial = parseInitial boardDim initialTour
+  pure (initial, boardDim)
 
 -- There are many checks to accomplish.
 -- First, we need to check that each square is uniq in the list.
@@ -231,7 +230,7 @@ parseInitial (w, h) squares
     -- so we can check squares are in the board
     colums = zip ['a'..] [0..w-1]
     rows = zip ['1'..] [0..h-1]
-    -- Get the valid columns and  valid rows
+    -- Get the valid columns and valid rows
     vcols = map fst colums
     vrows = map fst rows
 
