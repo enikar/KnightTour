@@ -69,10 +69,12 @@ executable KnigthTour
 
     -- Other library packages from which modules are imported.
     build-depends:  base >4 && <5
-                    , containers
-                    , vector
-                    , optparse-applicative
-                    , extra
+                  , containers
+                  , vector
+                  , optparse-applicative
+                  , extra
+                  , mtl
+                  , attoparsec
 
     ghc-options:    -O2 "-with-rtsopts=-M5G"
     -- Directories containing source files.
