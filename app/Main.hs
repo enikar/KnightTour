@@ -6,21 +6,18 @@
 -- {-# LANGUAGE OverloadedStrings #-}
 -- {-# LANGUAGE LambdaCase #-}
 -- {-# LANGUAGE MultiWayIf #-}
--- {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {- HLINT ignore "Eta reduce" -}
 
-import Data.Maybe (fromMaybe)
--- import Text.Read (readMaybe)
-import Data.Foldable (forM_)
+import Data.Foldable (forM_, foldrM)
 import Data.List (foldl')
 import Data.List.Extra (nubOrd)
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IM
 import Data.IntSet (IntSet)
 import Data.IntSet qualified as S
-import Data.Char (intToDigit)
 
 import Data.Ix (inRange)
 import Data.Vector
@@ -28,9 +25,20 @@ import Data.Vector
   ,(!)
   ,(//)
   )
-
 import Data.Vector qualified as V
+
 --  modules for parsing
+-- we use Attoparsec to write custom Options readers.
+-- import Data.Text qualified as T
+-- import Data.Attoparsec.Text as A
+
+-- We use Except to manage errors during parseInitial
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Except
+  (ExceptT
+  ,runExceptT
+  ,liftEither
+  )
 import Options.Applicative
   (Parser
   ,option
@@ -74,11 +82,14 @@ type Squares = IntMap String
 
 main :: IO ()
 main = do
-  (start, dim) <- parseOptions
-  let maxdepth = uncurry (*) dim
-      start' = V.fromList start
-      rules = buildRules dim
-  printSolutions dim (solutions rules maxdepth start')
+  r <- runExceptT parseOptions
+  case r of
+    Left e -> printError e
+    Right (dim, start) ->
+      let maxdepth = uncurry (*) dim
+          start' = V.fromList start
+          rules = buildRules dim
+      in printSolutions dim (solutions rules maxdepth start')
 
 -- This a back-tracking algorithm with two functions:
 -- solutions and successors.
@@ -98,7 +109,7 @@ successors rules tour = S.foldl' f [] nextSquares
     possibleSquares = rules ! lastsquare
     -- removes squares already in the tour
     nextSquares = S.difference possibleSquares (S.fromList (V.toList tour))
-    -- builds a new tour for each new square
+    -- builds a new tour for each new square (next)
     f acc next = V.snoc tour next : acc
 
 -- The trickier part is to build the Rules…
@@ -131,7 +142,7 @@ buildSquares :: Dim -> Squares
 buildSquares (w, h) = foldl' f IM.empty rows
   where
     columns = zip ['a'..] [0..w-1]
-    rows = zip (map intToDigit [1..]) [0..h-1]
+    rows = zip ['1'..] [0..h-1]
 
     f acc (crow, nrow) = foldl' g acc columns
       where
@@ -140,14 +151,14 @@ buildSquares (w, h) = foldl' f IM.empty rows
 
 -- utilities for printing
 printSolutions :: Dim -> [Tour] -> IO ()
-printSolutions dim tours =
+printSolutions dim tours = do
+  let squares = buildSquares dim
   forM_ (zip tours [1..]) $ \(tour,n) -> do
     putStr (show n <> ") ")
-    printTour dim tour
+    printTour squares tour
 
-printTour :: Dim -> Tour -> IO ()
-printTour dim tour = do
-  let squares = buildSquares dim
+printTour :: Squares -> Tour -> IO ()
+printTour squares tour = do
   forM_  tour $ \pos ->
     let square = positionToSquare squares pos
     in putStr (square <> " ")
@@ -190,81 +201,128 @@ parseTour = OptTour
       <> metavar "PAIR OF INT"
       )
 
-parseOptions :: IO ([Int], Dim)
-parseOptions = do
+parseOptions :: ExceptT ParseError IO (Dim, [Int])
+parseOptions =
   let options = info
         (parseTour <**> helper)
         (fullDesc
          <> progDesc "Compute solutions for the knight's tour"
          <> header "KnightTour --list=[\"a1\",\"c2\"] --size=(5,5)"
         )
-  OptTour{..} <- execParser options
-  let initial = parseInitial boardDim initialTour
-  pure (initial, boardDim)
+  in
+    do OptTour{..} <- liftIO (execParser options)
+       let initial = parseInitial boardDim initialTour
+       liftEither (fmap (boardDim,) initial)
 
 -- There are many checks to accomplish.
--- First, we need to check that each square is uniq in the list.
--- Second: check that each square is composed by a letter from 'a'
--- and a digit from 1
--- Third: Check these column and row are in the board
+-- First, we checkInitial the request size of the board
+-- Second: checkInitial that each square is uniq in the list.
+-- Third: checkInitial that each square is composed by a letter from 'a'
+--        and a digit from 1
+-- Fourth: Check these column and row are in the board
 -- Finally: Check jumps are valid.
 
--- Very ugly. Rewrite it! We have to think to a better way
--- to accomplish that. There are too many calls to the error "function"
--- We'll probably use ExceptT
-parseInitial :: Dim -> [String] -> [Int]
+-- We have to think to a better way to accomplish this. It's better
+-- since we use the Either Monad, though.
+-- Maybe split it in several functions is a good option.
+parseInitial :: Dim -> [String] -> Either ParseError [Int]
 parseInitial (w, h) squares
   |w > 9
    || h > 9
    || w < 1
-   || h < 1 = error ("Error: parseInitial: too high dimension (max (9,9)): " <> show (w, h))
-  |otherwise = map pairToPos ls'
-  where
-    -- build a position as a single Int
-    pairToPos (x, y) = x + w * y
+   || h < 1 = Left  (InvalidDimension (show (w, h)))
+  |otherwise =
+ let
+   -- build two lists of pairs within the size of the board
+   -- so we can checkInitial squares are in the board
+   colums = zip ['a'..] [0..w-1]
+   rows = zip ['1'..] [0..h-1]
+   -- Get the valid columns and valid rows
+   vcols = map fst colums
+   vrows = map fst rows
 
+   -- build a list of coordinate (Int, Int) from the list of String.
+   reduce :: String -> [(Int,Int)] -> Either ParseError [(Int, Int)]
+   reduce str acc = do
+     r <- strToPair str -- : acc
+     pure (r:acc)
+
+   -- Build a pair from a string if valid
+   -- "a1" becomes (0,0)
+   -- "b1" becomes (1,0)
+   strToPair :: String -> Either ParseError (Int, Int)
+   strToPair [col, row]
+     |col `elem` vcols
+      && row `elem` vrows =
+      do
+        ncol <- selectCol col
+        nrow <- selectRow row
+        pure (ncol, nrow)
+     |otherwise = Left (OutsideBoard [col, row])
+   strToPair str = Left (InvalidSquare str)
+
+   -- returns colum or row as a number or an error
+   selectCol :: Char -> Either ParseError Int
+   selectCol col = maybe errParse Right (lookup col colums)
+     where
+       errParse = Left (InvalidCol [col])
+
+   selectRow :: Char -> Either ParseError Int
+   selectRow row = maybe errParse Right (lookup row rows)
+     where
+       errParse = Left (InvalidRow [row])
+
+   -- build a position as a single Int
+   pairToPos (x, y) = x + w * y
+ in do
+   -- checks they aren't duplicate square
+   sq <- checkInitial squares
+   -- builds a [(Int,Int)] from the [String]
+   -- and performs many checks
+   ls <- foldrM reduce [] sq
+   -- Checks validity of jumps
+   ls' <- checkJumps ls
+   -- map (Int, Int) to position
+   pure (map pairToPos ls')
+
+-- checkInitial: check there aren't duplicate square
+checkInitial :: [String] -> Either ParseError [String]
+checkInitial sqs
+  |sqs == nubOrd sqs = Right sqs
+  |otherwise = Left (DuplicateSquare (show sqs))
+
+
+checkJumps :: [(Int, Int)] -> Either ParseError [(Int,Int)]
+checkJumps xs
+  |all (uncurry validJump) (zip xs (tail xs)) = Right xs
+  |otherwise = Left (InvalidJumps (show (map toSquare xs)))
+  where
+    validJump (x, y) (x', y') = (x' - x, y' - y) `elem` jumps
     -- build a list of jumps
     deltas = [1,2,-2, -1]
     jumps = [(i, j)| i <- deltas, j <- deltas, abs i /= abs j]
-    -- build two lists of pairs within the size of the board
-    -- so we can check squares are in the board
-    colums = zip ['a'..] [0..w-1]
-    rows = zip ['1'..] [0..h-1]
-    -- Get the valid columns and valid rows
-    vcols = map fst colums
-    vrows = map fst rows
-
-    -- build a list of coordinate (Int, Int) from the list of string.
-    ls = foldr f [] (check squares)
-    f str acc = strToPair str : acc
-    -- check there aren't duplicate square
-    check sqs
-      |sqs == nubOrd sqs = sqs
-      |otherwise = error ("Error: parseInitial: there is duplicate squares: "
-                           <> show squares)
-
-    -- check the validity of jumps
-    ls' |all (uncurry valid) (zip ls (tail ls)) = ls
-        |otherwise = error ("Error: parseInitial: invalid inital jumps: "
-                              <> show squares)
-
-    valid (x, y) (x', y') = (x' - x, y' - y) `elem` jumps
-
-    -- Build a pair from a string if valid
-    -- "a1" becomes (0,0)
-    -- "b1" becomes (1,0)
-    strToPair [col, row]
-      |col `elem` vcols
-       && row `elem` vrows = (selectCol col, selectRow row)
-      |otherwise = error ("Error: parseInitial: square outside the board: "
-                          <> [col, row])
-    strToPair str  = error ("Error: parseInitial: invalid square: " <> str)
-
-    -- returns colum or row as a number
-    selectCol col = fromMaybe errParse (lookup col colums)
+    toSquare (x, y) = [c,r]
       where
-        errParse = error ("Error: parseInitial: invalid colum: " <> show col)
+        c = ['a'..] !! x
+        r = ['1'..] !! y
 
-    selectRow row = fromMaybe errParse (lookup row rows)
-      where
-        errParse = error ("Error: parseInitial: invalid row: " <> show row)
+-- utilities to manage errors during parsing the initial list of jumps
+data ParseError = DuplicateSquare String
+                  |InvalidJumps String
+                  |OutsideBoard String
+                  |InvalidSquare String
+                  |InvalidCol String
+                  |InvalidRow String
+                  |InvalidDimension String
+
+printError :: ParseError -> IO ()
+printError err = putStrLn ("Error: parseInitial: " <> strError)
+  where
+    strError = case err of
+      DuplicateSquare str -> "There are duplicate squares: " <> str
+      InvalidJumps str -> "Invalid inital jumps: " <> str
+      OutsideBoard str -> "Square outside of the board: " <> str
+      InvalidSquare str -> "Invalid square name: " <> str
+      InvalidCol str -> "Invalid column: " <> str
+      InvalidRow str -> "invalid row: " <> str
+      InvalidDimension str -> "invalid dimension. It must be between (1,1) and (9,9) : " <> str
