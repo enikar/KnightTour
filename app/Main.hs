@@ -4,7 +4,6 @@
 
 {-# LANGUAGE ImportQualifiedPost #-}
 -- {-# LANGUAGE OverloadedStrings #-}
--- {-# LANGUAGE PackageImports #-}
 -- {-# LANGUAGE LambdaCase #-}
 -- {-# LANGUAGE MultiWayIf #-}
 -- {-# LANGUAGE TupleSections #-}
