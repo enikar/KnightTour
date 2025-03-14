@@ -77,7 +77,7 @@ executable KnigthTour
                   , attoparsec
                   , text
 
-    ghc-options:    -O2 "-with-rtsopts=-M5G"
+    ghc-options:    -O2 -with-rtsopts=-M5G
     -- Directories containing source files.
     hs-source-dirs:   app
 
