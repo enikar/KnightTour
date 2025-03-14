@@ -4,7 +4,7 @@
 
 {-# LANGUAGE ImportQualifiedPost #-}
 -- {-# LANGUAGE OverloadedStrings #-}
--- {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase #-}
 -- {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -31,7 +31,7 @@ import Data.Vector
 import Data.Vector qualified as V
 
 --  modules for parsing
--- we use Attoparsec to write custom Options readers.
+-- TODO: use Attoparsec to write custom Options readers.
 -- import Data.Text qualified as T
 -- import Data.Attoparsec.Text as A
 
@@ -87,7 +87,7 @@ main :: IO ()
 main = do
   r <- runExceptT parseOptions
   case r of
-    Left e -> printError e
+    Left e -> putStrLn ("Error: parseInital: " <> show e)
     Right (start, dim) ->
       let maxdepth = uncurry (*) dim
           start' = V.fromList start
@@ -323,15 +323,12 @@ data ParseError = DuplicateSquare String
                   |InvalidRow String -- never used
                   |InvalidDimension String
 
--- Maybe it should better to write a show instance for ParseError
-printError :: ParseError -> IO ()
-printError err = putStrLn ("Error: parseInitial: " <> strError)
-  where
-    strError = case err of
-      DuplicateSquare str -> "There are duplicate squares: " <> str
-      InvalidJumps str -> "Invalid inital jumps: " <> str
-      OutsideBoard str -> "Square outside of the board: " <> str
-      InvalidSquare str -> "Invalid square name: " <> str
-      InvalidCol str -> "Invalid column: " <> str
-      InvalidRow str -> "invalid row: " <> str
-      InvalidDimension str -> "invalid dimension. It must be between (1,1) and (9,9) : " <> str
+instance Show ParseError where
+  show = \case
+    DuplicateSquare str -> "There are duplicate squares: " <> str
+    InvalidJumps str -> "Invalid inital jumps: " <> str
+    OutsideBoard str -> "Square outside of the board: " <> str
+    InvalidSquare str -> "Invalid square name: " <> str
+    InvalidCol str -> "Invalid column: " <> str
+    InvalidRow str -> "invalid row: " <> str
+    InvalidDimension str -> "invalid dimension. It must be between (1,1) and (9,9) : " <> str
