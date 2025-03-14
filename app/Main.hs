@@ -11,6 +11,8 @@
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {- HLINT ignore "Eta reduce" -}
 
+module Main (main) where
+
 import Data.Foldable
   (forM_
   ,foldrM
@@ -34,6 +36,7 @@ import Data.Vector qualified as V
 -- TODO: use Attoparsec to write custom Options readers.
 -- import Data.Text qualified as T
 -- import Data.Attoparsec.Text as A
+import Data.Char (isDigit)
 
 -- We use Except to manage errors during parseInitial
 import Control.Monad.IO.Class (liftIO)
@@ -247,21 +250,23 @@ parseInitial (w, h) squares
    -- "b1" becomes (1,0)
    strToPair :: String -> Either ParseError (Int, Int)
    strToPair square@[col, row] = do
-     ncol <- selectCol square col
-     nrow <- selectRow square row
+     ncol <- parseCol square col
+     nrow <- parseRow square row
      pure (ncol, nrow)
    strToPair str = Left (InvalidSquare str)
 
    -- Returns colum or row as a number or an error
-   selectCol :: String -> Char -> Either ParseError Int
-   selectCol square col = maybe errParse Right (lookup col colums)
+   parseCol :: String -> Char -> Either ParseError Int
+   parseCol square col = maybe errParse Right (lookup col colums)
      where
-       errParse = Left (InvalidCol [col] square)
+       errParse |col `elem` ['a'..'z'] = Left (OutsideBoard square)
+                |otherwise = Left (InvalidCol [col] square)
 
-   selectRow :: String -> Char -> Either ParseError Int
-   selectRow square row = maybe errParse Right (lookup row rows)
+   parseRow :: String -> Char -> Either ParseError Int
+   parseRow square row = maybe errParse Right (lookup row rows)
      where
-       errParse = Left (InvalidRow [row] square)
+       errParse |isDigit row = Left (OutsideBoard square)
+                |otherwise = Left (InvalidRow [row] square)
 
    -- Builds a position as a single Int
    pairToPos (x, y) = x + w * y
@@ -297,6 +302,7 @@ data ParseError = DuplicateSquare String
                   |InvalidSquare String
                   |InvalidCol String String
                   |InvalidRow String String
+                  |OutsideBoard String
                   |InvalidDimension String
 
 instance Show ParseError where
@@ -306,4 +312,5 @@ instance Show ParseError where
     InvalidSquare str -> "Invalid square name: " <> str
     InvalidCol str sq -> "Invalid column: " <> str <> " in square: " <> sq
     InvalidRow str sq -> "invalid row: " <> str <> " in square: " <> sq
+    OutsideBoard str  -> "The square is outside of the board: " <> str
     InvalidDimension str -> "invalid dimension. It must be between (1,1) and (9,9) : " <> str
