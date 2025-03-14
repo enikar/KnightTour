@@ -219,7 +219,7 @@ parseOptions =
        let initial = parseInitial boardDim initialTour
        liftEither (fmap (,boardDim) initial)
 
--- There are many checks to accomplish.
+-- There are many checks to perform.
 -- First, we checkInitial the request size of the board
 -- Second: checkInitial that each square is uniq in the list.
 -- Third: checkInitial that each square is composed by a letter from 'a'
@@ -263,12 +263,12 @@ parseInitial (w, h) squares
    selectCol :: String -> Char -> Either ParseError Int
    selectCol square col = maybe errParse Right (lookup col colums)
      where
-       errParse = Left (InvalidCol [col] square ) -- not reached
+       errParse = Left (InvalidCol [col] square)
 
    selectRow :: String -> Char -> Either ParseError Int
    selectRow square row = maybe errParse Right (lookup row rows)
      where
-       errParse = Left (InvalidRow [row] square) -- not reached
+       errParse = Left (InvalidRow [row] square)
 
    -- Builds a position as a single Int
    pairToPos (x, y) = x + w * y
@@ -297,8 +297,8 @@ checkJumps squares xs
     deltas = [1,2,-2, -1]
     jumps = [(i, j)| i <- deltas, j <- deltas, abs i /= abs j]
 
--- Utilities to manage errors during parsing the initial list of jumps
--- We use a custom error data type in Either
+-- Utilities to manage errors during the parsing of the initial list of
+-- jumps. We use a custom error data type in Either
 data ParseError = DuplicateSquare String
                   |InvalidJumps String
                   |InvalidSquare String
@@ -311,6 +311,6 @@ instance Show ParseError where
     DuplicateSquare str -> "There are duplicate squares: " <> str
     InvalidJumps str -> "Invalid inital jumps: " <> str
     InvalidSquare str -> "Invalid square name: " <> str
-    InvalidCol str str' -> "Invalid column: " <> str <> " in square: " <> str'
-    InvalidRow str str' -> "invalid row: " <> str <> " in square: " <> str'
+    InvalidCol str sq -> "Invalid column: " <> str <> " in square: " <> sq
+    InvalidRow str sq -> "invalid row: " <> str <> " in square: " <> sq
     InvalidDimension str -> "invalid dimension. It must be between (1,1) and (9,9) : " <> str
