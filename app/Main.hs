@@ -78,7 +78,7 @@ type Dim = (Int, Int) -- width x height
 -- at index 1 is the second…
 type Tour = Vector Int
 
--- Squares map position to the coordinate in the chess tour
+-- Squares map position to the coordinate in the chessboard
 -- 0 is a1, 1 is a2…
 -- It's used for printing solutions.
 type Squares = IntMap String
@@ -242,9 +242,6 @@ parseInitial (w, h) squares
    -- so we can checkInitial squares are in the board
    colums = zip ['a'..] [0..w-1]
    rows = zip ['1'..] [0..h-1]
-   -- Get the valid columns and valid rows
-   vcols = map fst colums
-   vrows = map fst rows
 
    -- build a list of coordinate (Int, Int) from the list of String.
    reduce :: String -> [(Int,Int)] -> Either ParseError [(Int, Int)]
@@ -252,43 +249,35 @@ parseInitial (w, h) squares
      r <- strToPair str
      pure (r:acc)
 
-   -- Build a pair from a string if valid
+   -- Builds a pair from a string if valid
    -- "a1" becomes (0,0)
    -- "b1" becomes (1,0)
-   -- The way we check the validity of the square is
-   -- not optimal: we can't detect malformed col or row
-   -- it responds a (Left OutsideBoard) in this case.
    strToPair :: String -> Either ParseError (Int, Int)
-   strToPair [col, row]
-     |col `elem` vcols
-      && row `elem` vrows =
-      do
-        ncol <- selectCol col
-        nrow <- selectRow row
-        pure (ncol, nrow)
-     |otherwise = Left (OutsideBoard [col, row])
+   strToPair square@[col, row] = do
+     ncol <- selectCol square col
+     nrow <- selectRow square row
+     pure (ncol, nrow)
    strToPair str = Left (InvalidSquare str)
 
-   -- returns colum or row as a number or an error
-   selectCol :: Char -> Either ParseError Int
-   selectCol col = maybe errParse Right (lookup col colums)
+   -- Returns colum or row as a number or an error
+   selectCol :: String -> Char -> Either ParseError Int
+   selectCol square col = maybe errParse Right (lookup col colums)
      where
-       errParse = Left (InvalidCol [col]) -- not reached
+       errParse = Left (InvalidCol [col] square ) -- not reached
 
-   selectRow :: Char -> Either ParseError Int
-   selectRow row = maybe errParse Right (lookup row rows)
+   selectRow :: String -> Char -> Either ParseError Int
+   selectRow square row = maybe errParse Right (lookup row rows)
      where
-       errParse = Left (InvalidRow [row]) -- not reached
+       errParse = Left (InvalidRow [row] square) -- not reached
 
-   -- build a position as a single Int
+   -- Builds a position as a single Int
    pairToPos (x, y) = x + w * y
  in do
-   -- checks they aren't duplicate square
    sq <- checkInitial squares
    -- builds a [(Int,Int)] from the [String] and performs many checks…
    ls <- foldrM reduce [] sq
    -- Checks validity of jumps
-   ls' <- checkJumps ls
+   ls' <- checkJumps squares ls
    -- map (Int, Int) to position
    pure (map pairToPos ls')
 
@@ -298,37 +287,30 @@ checkInitial sqs
   |sqs == nubOrd sqs = Right sqs
   |otherwise = Left (DuplicateSquare (show sqs))
 
-
-checkJumps :: [(Int, Int)] -> Either ParseError [(Int,Int)]
-checkJumps xs
+checkJumps :: [String] -> [(Int, Int)] -> Either ParseError [(Int,Int)]
+checkJumps squares xs
   |all (uncurry validJump) (zip xs (tail xs)) = Right xs
-  |otherwise = Left (InvalidJumps (show (map toSquare xs)))
+  |otherwise = Left (InvalidJumps (show squares))
   where
     validJump (x, y) (x', y') = (x' - x, y' - y) `elem` jumps
     -- build a list of jumps
     deltas = [1,2,-2, -1]
     jumps = [(i, j)| i <- deltas, j <- deltas, abs i /= abs j]
-    toSquare (x, y) = [c,r]
-      where
-        c = ['a'..] !! x
-        r = ['1'..] !! y
 
 -- Utilities to manage errors during parsing the initial list of jumps
 -- We use a custom error data type in Either
 data ParseError = DuplicateSquare String
                   |InvalidJumps String
-                  |OutsideBoard String
                   |InvalidSquare String
-                  |InvalidCol String -- never used
-                  |InvalidRow String -- never used
+                  |InvalidCol String String
+                  |InvalidRow String String
                   |InvalidDimension String
 
 instance Show ParseError where
   show = \case
     DuplicateSquare str -> "There are duplicate squares: " <> str
     InvalidJumps str -> "Invalid inital jumps: " <> str
-    OutsideBoard str -> "Square outside of the board: " <> str
     InvalidSquare str -> "Invalid square name: " <> str
-    InvalidCol str -> "Invalid column: " <> str
-    InvalidRow str -> "invalid row: " <> str
+    InvalidCol str str' -> "Invalid column: " <> str <> " in square: " <> str'
+    InvalidRow str str' -> "invalid row: " <> str <> " in square: " <> str'
     InvalidDimension str -> "invalid dimension. It must be between (1,1) and (9,9) : " <> str
