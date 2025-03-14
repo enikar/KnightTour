@@ -3,7 +3,7 @@
 -- Usage: cabal run KnightTour -- --size='(5,4)' --list='["a1"]'
 
 {-# LANGUAGE ImportQualifiedPost #-}
--- {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 -- {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TupleSections #-}
@@ -34,8 +34,22 @@ import Data.Vector qualified as V
 
 --  modules for parsing
 -- TODO: use Attoparsec to write custom Options readers.
--- import Data.Text qualified as T
--- import Data.Attoparsec.Text as A
+import Data.Functor (void)
+import Control.Applicative
+  ((<|>)
+  ,optional
+  )
+
+--import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Attoparsec.Text
+  (parseOnly
+  ,char
+  ,decimal
+  ,sepBy1
+  ,takeWhile1
+  )
+import Data.Attoparsec.Text qualified as A
 import Data.Char (isDigit)
 
 -- We use Except to manage errors during parseInitial
@@ -47,8 +61,9 @@ import Control.Monad.Except
   )
 import Options.Applicative
   (Parser
+  ,ReadM
   ,option
-  ,auto
+  ,eitherReader
   ,long
   ,short
   ,help
@@ -181,11 +196,17 @@ data OptTour = OptTour
   ,boardDim :: (Int, Int)
   }
 
--- Maybe we should write custom readers to use in place of auto
--- We'll have a better syntax in the cmdline from the shell.
+-- Well we remove all spaces from the input. It's not neat but it
+-- simplifies the parsing with Attoparsec and spaces are meaningless for
+-- this program.
+attoReader :: A.Parser a -> ReadM a
+attoReader p = eitherReader $ \s ->
+  let s' = T.splitOn " " (T.pack s)
+  in parseOnly p (T.concat s')
+
 parseTour :: Parser OptTour
 parseTour = OptTour
-  <$> option auto
+  <$> option (attoReader parseList)
       (long "list"
        <> short 'l'
        <> help "Inital state of the tour as a list of square"
@@ -193,7 +214,7 @@ parseTour = OptTour
        <> value ["a1", "c2"]
        <> metavar "LIST OF SQUARE"
       )
-  <*> option auto
+  <*> option (attoReader parseSize)
       (long "size"
       <>short 's'
       <> help "Dimension of the tour between (1,1) and (9,9)"
@@ -213,7 +234,50 @@ parseOptions =
   in
     do OptTour{..} <- liftIO (execParser options)
        let initial = parseInitial boardDim initialTour
-       liftEither (fmap (,boardDim) initial)
+       liftEither ((,boardDim) <$> initial)
+
+parseSize :: A.Parser (Int,Int)
+parseSize = parsePair <|> parseCrux
+
+-- parseCrux parses an Int or the size as 5x4
+parseCrux :: A.Parser (Int,Int)
+parseCrux = do
+  n <- decimal
+  x <- optional (char 'x')
+  case x of
+    Nothing -> pure (n, n)
+    _       -> (n,) <$> decimal
+
+parsePair :: A.Parser (Int, Int)
+parsePair = do
+  void (char '(')
+  n1 <- decimal
+  void (char ',')
+  n2 <- decimal
+  void (char ')')
+  pure (n1, n2)
+
+parseList :: A.Parser [String]
+parseList = parseHsList <|> parseSimpleList
+
+parseHsList :: A.Parser [String]
+parseHsList = do
+  void (char '[')
+  ns <- parseStr `sepBy1` char ','
+  void (char ']')
+  pure ns
+
+parseStr :: A.Parser String
+parseStr = do
+  void (char '"')
+  s <- takeWhile1 (/= '"')
+  void (char '"')
+  pure (T.unpack s)
+
+parseSimpleList :: A.Parser [String]
+parseSimpleList =
+  map T.unpack <$> takeWhile1 (/=',') `sepBy1` char ','
+
 
 -- There are many checks to perform.
 -- First, we check the request size of the board
