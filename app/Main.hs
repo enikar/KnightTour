@@ -119,7 +119,7 @@ successors rules tour = S.foldl' f [] nextSquares
 -- (well, parsing the initial list from the command line was
 -- probably worst).
 -- There is another way to do it with two nested foldl' and using
--- V.snoc. Whether it is better, is a question of taste, I believe.
+-- V.snoc. Whether it is better or not, is a matter of  taste, I believe.
 -- (rules ! 0) are the successors of the possition 0 ("a1")
 -- (rules ! 1) are the successors of the position 1 ("a2")…
 buildRules :: Dim -> Rules
@@ -164,20 +164,13 @@ printSolutions dim tours = do
 
 printTour :: Squares -> Tour -> IO ()
 printTour squares tour = do
-  forM_  tour $ \pos ->
+  forM_ tour $ \pos ->
     let square = positionToSquare squares pos
     in putStr (square <> " ")
   putChar '\n'
 
 positionToSquare :: Squares -> Int -> String
 positionToSquare squares pos = squares IM.! pos
-
--- squareToPosition :: Squares -> String -> Int
--- squareToPosition squares str = IM.foldrWithKey search (-1) squares
---   where
---     search n s acc
---       |s == str = n
---       |otherwise = acc
 
 -- utillities for parsing the command line
 data OptTour = OptTour
@@ -220,9 +213,9 @@ parseOptions =
        liftEither (fmap (,boardDim) initial)
 
 -- There are many checks to perform.
--- First, we checkInitial the request size of the board
--- Second: checkInitial that each square is uniq in the list.
--- Third: checkInitial that each square is composed by a letter from 'a'
+-- First, we check the request size of the board
+-- Second: check that each square is uniq in the list.
+-- Third: check that each square is composed by a letter from 'a'
 --        and a digit from 1
 -- Fourth: Check these column and row are in the board
 -- Finally: Check jumps are valid.
@@ -239,7 +232,7 @@ parseInitial (w, h) squares
   |otherwise =
  let
    -- build two lists of pairs within the size of the board
-   -- so we can checkInitial squares are in the board
+   -- so we can check squares are in the board
    colums = zip ['a'..] [0..w-1]
    rows = zip ['1'..] [0..h-1]
 
