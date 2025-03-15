@@ -5,7 +5,6 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
--- {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
@@ -33,11 +32,10 @@ import Data.Vector
 import Data.Vector qualified as V
 
 --  modules for parsing
--- TODO: use Attoparsec to write custom Options readers.
-import Data.Functor (void)
 import Control.Applicative
   ((<|>)
   ,optional
+  ,(<**>)
   )
 
 --import Data.Text (Text)
@@ -76,7 +74,6 @@ import Options.Applicative
   ,progDesc
   ,header
   ,fullDesc
-  ,(<**>)
   )
 
 default(Int)
@@ -236,10 +233,14 @@ parseOptions =
        let initial = parseInitial boardDim initialTour
        liftEither ((,boardDim) <$> initial)
 
+-- Here we use Attoparsec to make option readers
+-- Almost all parsers are written using Applicative style
+-- though it is not mandatory. It was just for fun.
 parseSize :: A.Parser (Int,Int)
 parseSize = parsePair <|> parseCrux
 
 -- parseCrux parses an Int or the size as 5x4
+-- Applicative parsing is not possible here.
 parseCrux :: A.Parser (Int,Int)
 parseCrux = do
   n <- decimal
@@ -248,32 +249,31 @@ parseCrux = do
     Nothing -> pure (n, n)
     _       -> (n,) <$> decimal
 
+-- parses a pair of Int as (4,5)
 parsePair :: A.Parser (Int, Int)
-parsePair = do
-  void (char '(')
-  n1 <- decimal
-  void (char ',')
-  n2 <- decimal
-  void (char ')')
-  pure (n1, n2)
+parsePair =
+  liftA2 (,)
+         (char '(' *> decimal <* char ',')
+         (decimal <* char ')')
 
 parseList :: A.Parser [String]
 parseList = parseHsList <|> parseSimpleList
 
+-- parses a List of string with haskell syntax
 parseHsList :: A.Parser [String]
-parseHsList = do
-  void (char '[')
-  ns <- parseStr `sepBy1` char ','
-  void (char ']')
-  pure ns
+parseHsList =
+  char '['
+  *> parseStr `sepBy1` char ','
+  <* char ']'
 
+-- parses a string enclosed within " ", with no escaping with \
 parseStr :: A.Parser String
-parseStr = do
-  void (char '"')
-  s <- takeWhile1 (/= '"')
-  void (char '"')
-  pure (T.unpack s)
+parseStr =
+  T.unpack <$> (char '"'
+                *> takeWhile1 (/= '"')
+                <* char '"')
 
+-- parses a list of strings separate by a ','
 parseSimpleList :: A.Parser [String]
 parseSimpleList =
   map T.unpack <$> takeWhile1 (/=',') `sepBy1` char ','
@@ -299,7 +299,7 @@ parseInitial (w, h) squares
   |otherwise =
  let
    -- build two lists of pairs within the size of the board
-   -- so we can check squares are in the board
+   -- so we can check the squares are in the board
    colums = zip ['a'..] [0..w-1]
    rows = zip ['1'..] [0..h-1]
 
