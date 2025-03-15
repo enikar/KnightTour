@@ -18,6 +18,7 @@ import Data.Foldable
   )
 import Data.List (foldl')
 import Data.List.Extra (nubOrd)
+import Data.Tuple.Extra (dupe)
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IM
 import Data.IntSet (IntSet)
@@ -30,7 +31,7 @@ import Data.Vector
   ,(//)
   )
 import Data.Vector qualified as V
-
+import Control.Monad.Extra (eitherM)
 --  modules for parsing
 import Control.Applicative
   ((<|>)
@@ -98,15 +99,16 @@ type Tour = Vector Int
 type Squares = IntMap String
 
 main :: IO ()
-main = do
-  r <- runExceptT parseOptions
-  case r of
-    Left e -> putStrLn ("Error: parseInital: " <> show e)
-    Right (start, dim) ->
+main = eitherM terminate continue (runExceptT parseOptions)
+  where
+    terminate e = putStrLn ("Error: parseInital: " <> show e)
+
+    continue (start, dim) =
       let maxdepth = uncurry (*) dim
           start' = V.fromList start
           rules = buildRules dim
       in printSolutions dim (solutions rules maxdepth start')
+
 
 -- This a back-tracking algorithm with two functions:
 -- solutions and successors.
@@ -238,7 +240,7 @@ parseOptions =
 parseSize :: A.Parser (Int,Int)
 parseSize = parsePair
             <|> parseCrux
-            <|> (\x -> (x,x)) <$> decimal
+            <|> dupe <$> decimal
 
 -- parseCrux parses the size as 5x4
 parseCrux :: A.Parser (Int,Int)
