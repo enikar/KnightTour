@@ -197,8 +197,8 @@ data OptTour = OptTour
 -- this program.
 attoReader :: A.Parser a -> ReadM a
 attoReader p = eitherReader $ \s ->
-  let s' = T.splitOn " " (T.pack s)
-  in parseOnly p (T.concat s')
+  let s' = T.concat (T.splitOn " " (T.pack s))
+  in parseOnly p s'
 
 parseTour :: Parser OptTour
 parseTour = OptTour
