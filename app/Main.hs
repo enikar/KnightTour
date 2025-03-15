@@ -34,7 +34,6 @@ import Data.Vector qualified as V
 --  modules for parsing
 import Control.Applicative
   ((<|>)
-  ,optional
   ,(<**>)
   )
 
@@ -237,17 +236,16 @@ parseOptions =
 -- Almost all parsers are written using Applicative style
 -- though it is not mandatory. It was just for fun.
 parseSize :: A.Parser (Int,Int)
-parseSize = parsePair <|> parseCrux
+parseSize = parsePair
+            <|> parseCrux
+            <|> (\x -> (x,x)) <$> decimal
 
--- parseCrux parses an Int or the size as 5x4
--- Applicative parsing is not possible here.
+-- parseCrux parses the size as 5x4
 parseCrux :: A.Parser (Int,Int)
 parseCrux = do
-  n <- decimal
-  x <- optional (char 'x')
-  case x of
-    Nothing -> pure (n, n)
-    _       -> (n,) <$> decimal
+  liftA2 (,)
+         (decimal <* char 'x')
+         decimal
 
 -- parses a pair of Int as (4,5)
 parsePair :: A.Parser (Int, Int)
