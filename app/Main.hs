@@ -235,7 +235,7 @@ parseOptions =
        liftEither ((,boardDim) <$> initial)
 
 -- Here we use Attoparsec to make option readers
--- Almost all parsers are written using Applicative style
+-- All parsers are written in Applicative style
 -- though it is not mandatory. It was just for fun.
 parseSize :: A.Parser (Int,Int)
 parseSize = parsePair
@@ -297,46 +297,46 @@ parseInitial (w, h) squares
    || w < 1
    || h < 1 = Left  (InvalidDimension (show (w, h)))
   |otherwise =
- let
-   -- build two lists of pairs within the size of the board
-   -- so we can check the squares are in the board
-   colums = zip ['a'..] [0..w-1]
-   rows = zip ['1'..] [0..h-1]
+  let
+    -- build two lists of pairs within the size of the board
+    -- so we can check the squares are in the board
+    colums = zip ['a'..] [0..w-1]
+    rows = zip ['1'..] [0..h-1]
 
-   -- build a list of coordinate (Int, Int) from the list of String.
-   reduce :: String -> [(Int,Int)] -> Either ParseError [(Int, Int)]
-   reduce str acc = do
-     r <- strToPair str
-     pure (r:acc)
+    -- build a list of coordinate (Int, Int) from the list of String.
+    reduce :: String -> [(Int,Int)] -> Either ParseError [(Int, Int)]
+    reduce str acc = do
+      r <- strToPair str
+      pure (r:acc)
 
-   -- Builds a pair from a string if valid
-   -- "a1" becomes (0,0)
-   -- "b1" becomes (1,0)
-   strToPair :: String -> Either ParseError (Int, Int)
-   strToPair square@[col, row] = do
-     ncol <- parseCol square col
-     nrow <- parseRow square row
-     pure (ncol, nrow)
-   strToPair str = Left (InvalidSquare str)
+    -- Builds a pair from a string if valid
+    -- "a1" becomes (0,0)
+    -- "b1" becomes (1,0)
+    strToPair :: String -> Either ParseError (Int, Int)
+    strToPair square@[col, row] = do
+      ncol <- parseCol square col
+      nrow <- parseRow square row
+      pure (ncol, nrow)
+    strToPair str = Left (InvalidSquare str)
 
-   -- Returns colum or row as a number or an error
-   parseCol :: String -> Char -> Either ParseError Int
-   parseCol square col = maybe errParse Right (lookup col colums)
-     where
-       errParse |col `elem` ['a'..'z'] = Left (OutsideBoard square)
-                |otherwise = Left (InvalidCol [col] square)
+    -- Returns colum or row as a number or an error
+    parseCol :: String -> Char -> Either ParseError Int
+    parseCol square col = maybe errParse Right (lookup col colums)
+      where
+        errParse |col `elem` ['a'..'z'] = Left (OutsideBoard square)
+                 |otherwise = Left (InvalidCol [col] square)
 
-   parseRow :: String -> Char -> Either ParseError Int
-   parseRow square row = maybe errParse Right (lookup row rows)
-     where
-       errParse |isDigit row = Left (OutsideBoard square)
-                |otherwise = Left (InvalidRow [row] square)
+    parseRow :: String -> Char -> Either ParseError Int
+    parseRow square row = maybe errParse Right (lookup row rows)
+      where
+        errParse |isDigit row = Left (OutsideBoard square)
+                 |otherwise = Left (InvalidRow [row] square)
 
-   -- Builds a position as a single Int
-   pairToPos (x, y) = x + w * y
- in do
+    -- Builds a position as a single Int
+    pairToPos (x, y) = x + w * y
+  in do
    sq <- checkInitial squares
-   -- builds a [(Int,Int)] from the [String] and performs many checks…
+   -- builds a [(Int,Int)] from the [String] and performs some checks…
    ls <- foldrM reduce [] sq
    -- Checks validity of jumps
    ls' <- checkJumps squares ls
