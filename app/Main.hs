@@ -256,6 +256,16 @@ parsePair =
          (char '(' *> decimal <* char ',')
          (decimal <* char ')')
 
+-- parseList doesn't work properly. If one provides the string
+-- "[\"a1\",\"b3\"" the parser ParseHsList fails and the parser
+-- parseSimpleList succeeds. Later parseInitial produces a not very
+-- understandable error : Invalid square "b3". (The expected error
+-- should be Invalid square ["a1" but since we use foldrM the second is
+-- matched before the first… and the square in error message should'nt
+-- contain " "). Since Attoparsec doesn't provide usefull errors
+-- messages, we doubt about the way to solve this. Maybe it should be
+-- better to use another parser than attoparsec (triffecta, megaparsec
+-- or a hand written one?)
 parseList :: A.Parser [String]
 parseList = parseHsList <|> parseSimpleList
 
@@ -270,13 +280,14 @@ parseHsList =
 parseStr :: A.Parser String
 parseStr =
   T.unpack <$> (char '"'
-                *> takeWhile1 (/= '"')
-                <* char '"')
+                 *> takeWhile1 (/= '"')
+                 <* char '"'
+               )
 
 -- parses a list of strings separate by a ','
 parseSimpleList :: A.Parser [String]
 parseSimpleList =
-  map T.unpack <$> takeWhile1 (/=',') `sepBy1` char ','
+  map T.unpack <$> takeWhile1 (/= ',')  `sepBy1` char ','
 
 
 -- There are many checks to perform.
