@@ -99,11 +99,11 @@ type Tour = Vector Int
 type Squares = IntMap String
 
 main :: IO ()
-main = eitherM terminate continue (runExceptT parseOptions)
+main = eitherM printError goOn (runExceptT parseOptions)
   where
-    terminate e = putStrLn ("Error: parseInital: " <> show e)
+    printError e = putStrLn ("Error: parseInital: " <> show e)
 
-    continue (start, dim) =
+    goOn (start, dim) =
       let maxdepth = uncurry (*) dim
           start' = V.fromList start
           rules = buildRules dim
