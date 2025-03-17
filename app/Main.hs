@@ -94,7 +94,7 @@ type Dim = (Int, Int) -- width x height
 type Tour = Vector Int
 
 -- Squares map position to the coordinate in the chessboard
--- 0 is a1, 1 is a2…
+-- 0 is a1, 1 is b1…
 -- It's used for printing solutions.
 type Squares = IntMap String
 
@@ -137,7 +137,7 @@ successors rules tour = S.foldl' f [] nextSquares
 -- There is another way to do it with two nested foldl' and using
 -- V.snoc. Whether it is better or not, is a matter of  taste, I believe.
 -- (rules ! 0) are the successors of the possition 0 ("a1")
--- (rules ! 1) are the successors of the position 1 ("a2")…
+-- (rules ! 1) are the successors of the position 1 ("b1")…
 buildRules :: Dim -> Rules
 buildRules (w, h) = V.replicate (w*h) S.empty // rules
   where
