@@ -31,7 +31,7 @@ import Data.Vector
   ,(//)
   )
 import Data.Vector qualified as V
-import Control.Monad.Extra (eitherM)
+
 --  modules for parsing
 import Control.Applicative
   ((<|>)
@@ -99,7 +99,7 @@ type Tour = Vector Int
 type Squares = IntMap String
 
 main :: IO ()
-main = eitherM printError goOn (runExceptT parseOptions)
+main = runExceptT parseOptions >>= either printError goOn
   where
     printError e = putStrLn ("Error: parseInital: " <> show e)
 
