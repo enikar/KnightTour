@@ -280,8 +280,8 @@ parseHsList =
 parseStr :: A.Parser String
 parseStr =
   T.unpack <$> (char '"'
-                 *> takeWhile1 (/= '"')
-                 <* char '"'
+                *> takeWhile1 (/= '"')
+                <* char '"'
                )
 
 -- parses a list of strings separate by a ','
