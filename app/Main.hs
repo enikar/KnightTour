@@ -7,6 +7,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {- HLINT ignore "Eta reduce" -}
 
@@ -28,9 +30,12 @@ import Data.Ix (inRange)
 import Data.Vector
   (Vector
   ,(!)
-  ,(//)
+  --,(//)
   )
 import Data.Vector qualified as V
+import Data.Vector.Mutable qualified as MV
+import Control.Monad.ST
+  (runST)
 
 --  modules for parsing
 import Control.Applicative
@@ -138,25 +143,50 @@ successors rules tour = S.foldl' f [] nextSquares
 -- V.snoc. Whether it is better or not, is a matter of  taste, I believe.
 -- (rules ! 0) are the successors of the possition 0 ("a1")
 -- (rules ! 1) are the successors of the position 1 ("b1")…
-buildRules :: Dim -> Rules
-buildRules (w, h) = V.replicate (w*h) S.empty // rules
-  where
-    rules = foldl' f [] squares
-    squares = [(x,y) | x <- [0..w-1], y <- [0..h-1]]
 
+-- buildRules :: Dim -> Rules
+-- buildRules (w, h) = V.replicate (w*h) S.empty // rules
+--   where
+--     rules = foldl' f [] squares
+--     squares = [(x,y) | x <- [0..w-1], y <- [0..h-1]]
+
+--     range = ((0,0), (w-1, h-1))
+--     deltas = [1, 2, -2, -1]
+--     jumps = [(i,j) | i <- deltas, j <- deltas, abs i /= abs j]
+
+--     f acc (col, row) = (col+w*row, S.fromList possibleJumps) : acc
+--       where
+--         possibleJumps = foldl' g [] jumps
+--         g acc' (dx, dy)
+--           |inRange range (col', row') = (col' + w*row') : acc'
+--           |otherwise                  = acc'
+--            where
+--              row' = row + dy
+--              col' = col + dx
+
+-- Finally, we use Use Mvector to build the rules.
+buildRules :: Dim -> Rules
+buildRules (w, h) =
+  let
     range = ((0,0), (w-1, h-1))
     deltas = [1, 2, -2, -1]
-    jumps = [(i,j) | i <- deltas, j <- deltas, abs i /= abs j]
+    jumps = [(i,j) | i <-deltas, j <- deltas, abs i /= abs j]
 
-    f acc (col, row) = (col+w*row, S.fromList possibleJumps) : acc
+    possibleJumps col row = foldl' g [] jumps
       where
-        possibleJumps = foldl' g [] jumps
-        g acc' (dx, dy)
-          |inRange range (col', row') = (col' + w*row') : acc'
-          |otherwise                  = acc'
-           where
-             row' = row + dy
-             col' = col + dx
+        g acc (dx, dy)
+          |inRange range (col', row') = (col' + w *row') : acc
+          |otherwise                  = acc
+          where
+            row' = row + dy
+            col' = col + dx
+
+  in runST $ do
+    v <- MV.new (w*h)
+    forM_ [0..w-1] $ \col ->
+      forM_ [0..h-1] $ \row ->
+          MV.write v (col+w*row) (S.fromList (possibleJumps col row))
+    V.unsafeFreeze v
 
 -- Build the maping between positions (Ints) and square names.
 buildSquares :: Dim -> Squares
