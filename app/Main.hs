@@ -378,9 +378,9 @@ parseInitial (w, h) squares
     -- builds a [(Int,Int)] from the [String] and performs some checks…
     ls <- foldrM reduce [] sq
     -- Checks validity of jumps
-    ls' <- checkJumps squares ls
+    checkJumps squares ls
     -- map (Int, Int) to position
-    pure (map pairToPos ls')
+    pure (map pairToPos ls)
 
 -- checkInitial: checks there aren't duplicate squares
 checkInitial :: [String] -> Either ParseError [String]
@@ -388,9 +388,9 @@ checkInitial sqs
   |sqs == nubOrd sqs = Right sqs
   |otherwise = Left (DuplicateSquare (show sqs))
 
-checkJumps :: [String] -> [(Int, Int)] -> Either ParseError [(Int,Int)]
+checkJumps :: [String] -> [(Int, Int)] -> Either ParseError ()
 checkJumps squares xs
-  |all (uncurry validJump) (zip xs (tail xs)) = Right xs
+  |all (uncurry validJump) (zip xs (tail xs)) = Right ()
   |otherwise = Left (InvalidJumps (show squares))
   where
     validJump (x, y) (x', y') = (x' - x, y' - y) `elem` jumps
