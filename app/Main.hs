@@ -374,18 +374,18 @@ parseInitial (w, h) squares
     -- Builds a position as a single Int
     pairToPos (x, y) = x + w * y
   in do
-    sq <- checkInitial squares
+    checkInitial squares
     -- builds a [(Int,Int)] from the [String] and performs some checks…
-    ls <- foldrM reduce [] sq
+    ls <- foldrM reduce [] squares
     -- Checks validity of jumps
     checkJumps squares ls
     -- map (Int, Int) to position
     pure (map pairToPos ls)
 
 -- checkInitial: checks there aren't duplicate squares
-checkInitial :: [String] -> Either ParseError [String]
+checkInitial :: [String] -> Either ParseError ()
 checkInitial sqs
-  |sqs == nubOrd sqs = Right sqs
+  |sqs == nubOrd sqs = Right ()
   |otherwise = Left (DuplicateSquare (show sqs))
 
 checkJumps :: [String] -> [(Int, Int)] -> Either ParseError ()
