@@ -1,5 +1,6 @@
 *~
 newdist/
 dist-newstyle/
+old/
 *.bak
 TAGS
