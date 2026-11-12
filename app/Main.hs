@@ -16,7 +16,7 @@ import Data.Foldable
   (forM_
   ,foldrM
   )
-import Data.List (foldl')
+--import Data.List (foldl')
 import Data.List.Extra (nubOrd)
 import Data.Tuple.Extra (dupe)
 import Data.IntMap.Strict (IntMap)
@@ -53,13 +53,6 @@ import Data.Attoparsec.Text
 import Data.Attoparsec.Text qualified as A
 import Data.Char (isDigit)
 
--- We use Except to manage errors during parseInitial
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Except
-  (ExceptT
-  ,runExceptT
-  ,liftEither
-  )
 import Options.Applicative
   (Parser
   ,ReadM
@@ -102,7 +95,7 @@ type Tour = Vector Int
 type Squares = IntMap String
 
 main :: IO ()
-main = runExceptT parseOptions >>= either printError goOn
+main = parseOptions >>= either printError goOn
   where
     printError e = putStrLn ("Error: parseInital: " <> show e)
 
@@ -168,7 +161,7 @@ buildRules (w, h) =
   let
     range = ((0,0), (w-1, h-1))
     deltas = [1, 2, -2, -1]
-    jumps = [(i,j) | i <-deltas, j <- deltas, abs i /= abs j]
+    jumps = [(i,j) | i <- deltas, j <- deltas, abs i /= abs j]
 
     possibleJumps col row = foldl' g [] jumps
       where
@@ -249,7 +242,7 @@ parseTour = OptTour
       <> metavar "PAIR OF INT"
       )
 
-parseOptions :: ExceptT ParseError IO ([Int], Dim)
+parseOptions :: IO (Either ParseError ([Int], Dim))
 parseOptions =
   let options = info
         (parseTour <**> helper)
@@ -258,9 +251,9 @@ parseOptions =
          <> header "KnightTour --list=[\"a1\",\"c2\"] --size=(5,5)"
         )
   in
-    do OptTour{..} <- liftIO (execParser options)
+    do OptTour{..} <- execParser options
        let initial = parseInitial boardDim initialTour
-       liftEither ((,boardDim) <$> initial)
+       pure ((,boardDim) <$> initial)
 
 -- Here we use Attoparsec to make option readers
 -- All parsers are written in Applicative style
@@ -390,7 +383,7 @@ checkInitial sqs
 
 checkJumps :: [String] -> [(Int, Int)] -> Either ParseError ()
 checkJumps squares xs
-  |all (uncurry validJump) (zip xs (tail xs)) = Right ()
+  |all (uncurry validJump) (zip xs (drop 1 xs)) = Right ()
   |otherwise = Left (InvalidJumps (show squares))
   where
     validJump (x, y) (x', y') = (x' - x, y' - y) `elem` jumps
