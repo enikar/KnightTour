@@ -73,7 +73,6 @@ executable KnigthTour
                   , vector
                   , optparse-applicative
                   , extra
-                  , mtl
                   , attoparsec
                   , text
 
